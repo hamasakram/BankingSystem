@@ -4,7 +4,7 @@ import sqlite3
 import csv
 from datetime import datetime
 
-class BankingApp(tk.Tk):
+class BankingApp(tk.Tk): 
     def __init__(self):
         super().__init__()
         self.title("Banking Application")
@@ -264,29 +264,42 @@ class BankingApp(tk.Tk):
         self.change_screen(self.withdraw_cash_screen)
 
     def withdraw_cash(self):
-        amount = self.withdraw_amount_entry.get()
+        amount_str = self.withdraw_amount_entry.get()
         try:
-            amount = float(amount)
+            amount = float(amount_str)
             if amount <= 0:
                 raise ValueError("Amount must be positive")
         except ValueError:
             messagebox.showerror("Invalid Amount", "Please enter a valid positive amount.")
             return
 
-        account_number = self.generate_account_number()
+    # Retrieve the account number from the current logged-in session (assuming you store it upon login)
+        if not hasattr(self, 'current_account_number'):
+            messagebox.showerror("Session Error", "No active session found.")
+            return
+
+    # Use the existing account number
+        account_number = self.current_account_number
         cursor = self.db_conn.cursor()
-        cursor.execute("SELECT balance FROM users WHERE id = (SELECT user_id FROM accounts WHERE account_number = ?)", (account_number,))
-        balance = cursor.fetchone()[0]
+        cursor.execute("SELECT balance FROM accounts WHERE account_number = ?", (account_number,))
+        result = cursor.fetchone()
+        if result is None:
+            messagebox.showerror("Account Error", "Account not found.")
+            return
+
+        balance = result[0]
         if amount > balance:
             messagebox.showerror("Insufficient Funds", "Your account balance is too low.")
             return
 
-        cursor.execute("UPDATE users SET balance = balance - ? WHERE id = (SELECT user_id FROM accounts WHERE account_number = ?)", (amount, account_number))
+    # Proceed with the withdrawal
+        cursor.execute("UPDATE accounts SET balance = balance - ? WHERE account_number = ?", (amount, account_number))
         cursor.execute("INSERT INTO transactions (account_number, transaction_type, amount, transaction_date) VALUES (?, 'Withdraw', ?, ?)",
-                    (account_number, amount, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                   (account_number, amount, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         self.db_conn.commit()
         self.update_csv_file([account_number, 'Withdraw', amount, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
         messagebox.showinfo("Withdrawal", f"Amount ${amount} withdrawn successfully.")
+
 
 
     def deposit_cash(self):
